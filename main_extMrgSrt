@@ -1,0 +1,272 @@
+#include<bits/stdc++.h>
+using namespace std;
+#define BUFF 100000
+#define ll long long
+#define f(i,a,b) for(i=a;i<b;i++)
+#define numChar 5
+
+struct heapNode
+{
+	ll data;
+	ll fileno;
+};
+
+void mergeSort(ll l, ll h, ll ar[]);
+void _mergeSort(ll l, ll h, ll arr[]);
+void merge(ll l, ll h, ll mid, ll ar[]);
+void swap1(ll *x, ll *y);
+void swap2(struct heapNode *x, struct heapNode *y);
+void fileMerge(ll numOfFiles, char *inputFile, char *outputFile);
+void mheapify(struct heapNode heap[], ll numOfFiles);
+void fileInit(char *inputFile, char *outputFile, ll numOfFiles);
+
+
+int main(int argc, char *argv[]){
+	char *inputFile,*outputFile;
+	ll numOfFiles=1;
+
+	inputFile=argv[1];
+	outputFile=argv[2];	
+
+	fileInit(inputFile, outputFile, numOfFiles);	
+	// cout<<"The no. of files (main)"<<numOfFiles<<endl;		 
+
+}
+
+void fileInit(char *inputFile, char *outputFile, ll numOfFiles){
+	FILE* input=fopen(inputFile,"r");
+	bool filesLeft=true;
+
+	ll counter=0, flag=0;;
+	while(filesLeft){
+		ll *ar=new ll[BUFF];		
+		char file[numChar];//Intermediate files
+		
+		ll j;
+		counter++;
+		flag=0;
+		// cout<<"Iteration #"<<counter<<endl;
+		f(j,0,BUFF){
+			
+			ll status=fscanf(input,"%lld\n",&ar[j]);//reading elems into the array; "BUFF" no. of elems go to a single temp file
+			// cout<<" Elem being taken: "<<ar[j]<<endl;
+			if(status==1){//There's atleast 1 value in the input file, and it needs to be written to a temp file
+				//(For a case when input file size<BUFF).
+				//filesLeft set as false only when flag=0
+				flag=1;
+			}
+			if(status!=1){
+				if(flag==0)	filesLeft=false;//Blank input file
+				break;
+			}			
+		}
+
+		if(filesLeft){
+			mergeSort(0,j-1, ar);
+			snprintf(file,sizeof(file),"%lld",numOfFiles);
+			FILE *out=fopen(file,"w");
+
+			//writing to file
+			ll i;
+			f(i,0,j){
+				fprintf(out,"%lld\n",ar[i]);
+			}
+
+			fclose(out);
+			numOfFiles++;
+		}
+
+	}
+
+	numOfFiles-=1;
+
+	fileMerge(numOfFiles,inputFile,outputFile);
+	fclose(input);
+}
+
+void fileMerge(ll numOfFiles, char *inputFile, char *outputFile){
+	ll i, itr,count=0;
+	struct heapNode heap[numOfFiles+5];	
+	FILE* tempFiles[numOfFiles];//Intermediate files
+	
+	FILE* output=fopen(outputFile,"w");
+	if(output<0){
+		perror("Couldn't open file");
+		exit(1);
+	}
+
+	//open all files 
+	f(i,0,numOfFiles){
+		char file[numChar];
+		ll fileno=i+1;
+		snprintf(file,sizeof(file),"%lld",fileno);
+		tempFiles[i]=fopen(file,"r"); 
+		if(tempFiles[i]<0)
+		{
+			perror("file not open");
+			exit(1);
+		}
+		// cout<<"Opened file "<<fileno<<"\n";
+	}
+	
+	// cout<<"Entry in heap begins now"<<endl;
+	//Read the first element from each file and insert in the heap 
+	f(i,0,numOfFiles){		
+		if((fscanf(tempFiles[i],"%lld\n",&(heap[i].data))!=1)){
+			cout<<"No first element found"<<endl;;
+			break;
+		}		
+		heap[i].fileno=i;
+
+		itr=i;
+		while(itr>0){
+			// cout<<"itr > 0 now"<<endl;
+			ll parent;
+			parent=(itr%2==0)?(itr/2)-1:itr/2;
+    		if(heap[parent].data>heap[itr].data){
+                swap2(&(heap[parent]),&(heap[itr]));           
+                itr=parent;
+            }
+            else{
+            	break;
+            }
+		}
+    }
+
+    // cout<<"Have entered first of each file \n";
+	
+	count=0;//0 and not 1, as otherwise it's leaving out the last file
+    //Put the min elem in the o/p file, and replace heap root with next elem from the same file
+    //count tells us that none of the files have any more data left
+    while(count!=numOfFiles){
+		fprintf(output,"%lld\n",(heap[0].data));
+
+		ll fn=heap[0].fileno;
+		if(fscanf(tempFiles[fn],"%lld\n",&(heap[0].data))!=1)
+		{
+			heap[0].data=INT_MAX;//No more elem in file no. fn.
+			count++;
+			// cout<<"I'm insode"<<endl;
+		}
+		// cout<<"Before callimg mheapify()"<<endl;
+		// f(hp,0,numOfFiles){
+  //   		cout<<heap[hp].data<<" ";
+	 //    }
+	 //    cout<<endl;
+
+
+		mheapify(heap,numOfFiles);
+		// cout<<"Returned from mheapify()"<<endl;
+
+		// f(hp,0,numOfFiles){
+  //   		cout<<heap[hp].data<<" ";
+	 //    }
+	 //    cout<<endl;
+
+    }
+
+    // cout<<"Going to start closing all files now"<<endl;         
+
+    //closing all files
+    f(i,0,numOfFiles){
+		fclose(tempFiles[i]);
+	}
+	fclose(output);
+
+	// cout<<"Have closed all files"<<endl; 
+}
+
+void swap1(ll *x,ll *y){
+	ll temp=*x;
+	*x=*y;
+	*y=temp;
+}
+
+void swap2(struct heapNode *x,struct heapNode *y){
+	swap1(&((*x).data), &((*y).data));
+	swap1(&((*x).fileno), &((*y).fileno));
+}
+
+void mheapify(struct heapNode heap[], ll numOfFiles){
+    ll i=0, n=numOfFiles;
+    // cout<<".............................................."<<endl;
+    //i--> parent; 2*i+!-->left child; 2*i+2--> right child
+    while( ((2*i+2)<n && heap[2*i+2].data<heap[i].data) 
+    	|| ((2*i+1)<n && heap[2*i+1].data<heap[i].data)){
+
+        if(2*i+2<n){//right child also in range/valid and both left and right child < root
+        	if(heap[2*i+1].data<=heap[2*i+2].data){	        	
+				swap2(&(heap[2*i+1]),&(heap[i]));				
+				i=(2*i+1);         
+	        }
+	        else{
+	        	swap2(&(heap[2*i+2]), &(heap[i]));
+	            i=(2*i+2);         
+	        }
+        }
+        else{//only left child in range and it's < root        	
+			swap2(&(heap[2*i+1]),&(heap[i]));			
+			i=(2*i+1); 
+        }
+    }
+
+    //cout<<"3:Before swap in mheapify"<<endl;
+	// cout<<"heap[2*i+1]: "<<heap[2*i+1].data<<" "<<heap[2*i+1].fileno<<endl;
+	// cout<<"heap[i]: "<<heap[i].data<<" "<<heap[i].fileno<<endl;
+	// cout<<"After swap in mheapify"<<endl;
+	// cout<<"heap[2*i+1]: "<<heap[2*i+1].data<<" "<<heap[2*i+1].fileno<<endl;
+	// cout<<"heap[i]: "<<heap[i].data<<" "<<heap[i].fileno<<endl;    
+}
+
+void merge(ll l, ll h, ll mid, ll arr[]){
+	ll x1=mid-l+1, x2=h-(mid+1)+1;
+	// cout<<x1<<" "<<x2<<endl;
+	//Temp arrays
+	ll arr1[x1],arr2[x2];
+	ll p1,p2,i=0,j=0,k=l;
+
+	f(p1,0,x1){
+		arr1[p1]=arr[l+p1];
+	}
+
+	f(p2,0,x2){
+		arr2[p2]=arr[mid+1+p2];
+	}
+
+	//Merge
+	while(i<x1 && j<x2){
+		if(arr1[i]<=arr2[j]) arr[k]=arr1[i++];
+		else arr[k]=arr2[j++];
+		k++;
+	}
+
+	while(i<x1){
+		arr[k++]=arr1[i++];
+	}
+
+	while(j<x2){
+		arr[k++]=arr2[j++];
+	}
+
+}
+
+void _mergeSort(ll l, ll h, ll arr[]){
+	if(l<h){
+		ll mid=l+(h-l)/2;
+		_mergeSort(l,mid,arr);
+		_mergeSort(mid+1,h,arr);
+		merge(l,h,mid,arr);
+	}
+}
+
+void mergeSort(ll l, ll h, ll arr[]){
+	// cout<<"Array as recvd in mergeSort(): "<<endl;
+	// int j;
+	// f(j,0,BUFF){
+	// 	cout<<arr[j]<<" ";
+	// }
+	// cout<<endl;
+	// cout<<"l "<<l<<" h "<<h<<endl;
+	_mergeSort(l,h,arr);
+}
+
